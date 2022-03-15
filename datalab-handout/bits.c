@@ -200,10 +200,10 @@ int negate(int x) {
  */
 int isAsciiDigit(int x) {
   int last_4bit = x & 0xF;
-  int is_3x = !~((x ^ ~0x3F) | 0xF);
-  int last_4bit_is_less_than_8 = !(last_4bit & 0x8);
-  int last_4bit_is_89 = !(last_4bit & 0x6);
-  return is_3x & (last_4bit_is_less_than_8 | last_4bit_is_89);
+  int is_3x = !((x & ~0xF) ^ 0x30);
+  int is_neg = (last_4bit + ~0xA + 1) >> 31;
+
+  return is_3x & is_neg;
 }
 /* 
  * conditional - same as x ? y : z 
@@ -268,47 +268,27 @@ int logicalNeg(int x) {
  *  Rating: 4
  */
 int howManyBits(int x) {
-  int l = ~0;
-  int m = 16;
-  int flag, l_mask, r_mask;
+  int flag_16, flag_8, flag_4, flag_2, flag_1, flag_0;
   x = x ^ (x >> 31);
 
-  flag = (((1 << 31) >> (l + m)) & x); 
-  l_mask = (flag >> 31 | ((~flag + 1) >> 31));
-  r_mask = ~l_mask;
-  l = l + (r_mask & m);
-  m = m >> 1;
+  flag_16 = !!(x >> 16) << 4;
+  x = x >> flag_16;
 
-  flag = (((1 << 31) >> (l + m)) & x); 
-  l_mask = (flag >> 31 | ((~flag + 1) >> 31));
-  r_mask = ~l_mask;
-  l = l + (r_mask & m);
-  m = m >> 1;
+  flag_8 = !!(x >> 8) << 3;
+  x = x >> flag_8;
 
-  flag = (((1 << 31) >> (l + m)) & x); 
-  l_mask = (flag >> 31 | ((~flag + 1) >> 31));
-  r_mask = ~l_mask;
-  l = l + (r_mask & m);
-  m = m >> 1;
+  flag_4 = !!(x >> 4) << 2;
+  x = x >> flag_4;
 
-  flag = (((1 << 31) >> (l + m)) & x); 
-  l_mask = (flag >> 31 | ((~flag + 1) >> 31));
-  r_mask = ~l_mask;
-  l = l + (r_mask & m);
-  m = m >> 1;
+  flag_2 = !!(x >> 2) << 1;
+  x = x >> flag_2;
 
-  flag = (((1 << 31) >> (l + m)) & x); 
-  l_mask = (flag >> 31 | ((~flag + 1) >> 31));
-  r_mask = ~l_mask;
-  l = l + (r_mask & m);
-  m = 1;
+  flag_1 = !!(x >> 1);
+  x = x >> flag_1;
 
-  flag = (((1 << 31) >> (l + m)) & x); 
-  l_mask = (flag >> 31 | ((~flag + 1) >> 31));
-  r_mask = ~l_mask;
-  l = l + (r_mask & m);
+  flag_0 = !!(x);
 
-  return 33 + ~l;
+  return flag_16 + flag_8 + flag_4 + flag_2 + flag_1 + flag_0 + 1;
 }
 //float
 /* 
