@@ -23,5 +23,6 @@ ArchitectureLab/archlab-handout/sim/y86-code/*.yo
 ArchitectureLab/archlab-handout/sim/misc/*.yo
 ArchitectureLab/archlab-handout/sim/seq/ssim
 ArchitectureLab/archlab-handout/sim/seq/seq-std.c
+ArchitectureLab/archlab-handout/sim/seq/seq-full.c
 ArchitectureLab/archlab-handout/sim/pipe/psim
 ArchitectureLab/archlab-handout/sim/pipe/pipe-std.c
