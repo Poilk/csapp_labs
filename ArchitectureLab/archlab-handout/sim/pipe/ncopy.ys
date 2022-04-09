@@ -17,10 +17,45 @@ ncopy:
 # You can modify this portion
 	# Loop header
 	xorq %rax,%rax		# count = 0;
-	andq %rdx,%rdx		# len <= 0?
-	jle Done		# if so, goto Done:
+	jmp TestK
+	
+LoopK:
+	mrmovq (%rdi), %r10
+	mrmovq 8(%rdi), %r11
+	mrmovq 16(%rdi), %r12
+	mrmovq 24(%rdi), %r13
+	rmmovq %r10, (%rsi)
+	rmmovq %r11, 8(%rsi)
+	rmmovq %r12, 16(%rsi)
+	rmmovq %r13, 24(%rsi)
+	andq %r10, %r10
+	jle Npos0
+	iaddq $1, %rax
+Npos0:
+	andq %r11, %r11
+	jle Npos1
+	iaddq $1, %rax
+Npos1:
+	andq %r12, %r12
+	jle Npos2
+	iaddq $1, %rax
+Npos2:
+	andq %r13, %r13
+	jle Npos3
+	iaddq $1, %rax
+Npos3:
+	iaddq $-4, %rdx		# len--
+	iaddq $32, %rdi		# src++
+	iaddq $32, %rsi		# dst++
 
-Loop:	mrmovq (%rdi), %r10	# read val from src...
+TestK:
+	irmovq $-4, %r8
+	addq %rdx, %r8
+	jg LoopK
+
+	jmp Test
+Loop:	
+	mrmovq (%rdi), %r10	# read val from src...
 	rmmovq %r10, (%rsi)	# ...and store it to dst
 	andq %r10, %r10		# val <= 0?
 	jle Npos		# if so, goto Npos:
@@ -29,6 +64,7 @@ Npos:
 	iaddq $-1, %rdx		# len--
 	iaddq $8, %rdi		# src++
 	iaddq $8, %rsi		# dst++
+Test:
 	andq %rdx,%rdx		# len > 0?
 	jg Loop			# if so, goto Loop:
 ##################################################################
