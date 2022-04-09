@@ -56,12 +56,12 @@ TestK:
 	jmp Test
 Loop:	
 	mrmovq (%rdi), %r10	# read val from src...
+	iaddq $-1, %rdx		# len--
 	rmmovq %r10, (%rsi)	# ...and store it to dst
 	andq %r10, %r10		# val <= 0?
 	jle Npos		# if so, goto Npos:
 	iaddq $1, %rax		# count++
 Npos:
-	iaddq $-1, %rdx		# len--
 	iaddq $8, %rdi		# src++
 	iaddq $8, %rsi		# dst++
 Test:
