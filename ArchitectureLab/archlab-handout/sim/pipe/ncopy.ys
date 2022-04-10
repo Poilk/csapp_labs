@@ -17,55 +17,64 @@ ncopy:
 # You can modify this portion
 	# Loop header
 	xorq %rax,%rax		# count = 0;
+
 	jmp TestK
-	
 LoopK:
-	mrmovq (%rdi), %r10
-	mrmovq 8(%rdi), %r11
-	mrmovq 16(%rdi), %r12
-	mrmovq 24(%rdi), %r13
-	rmmovq %r10, (%rsi)
-	rmmovq %r11, 8(%rsi)
-	rmmovq %r12, 16(%rsi)
-	rmmovq %r13, 24(%rsi)
-	andq %r10, %r10
+	mrmovq (%rdi), %r8
+	mrmovq 8(%rdi), %r9
+	mrmovq 16(%rdi), %r10
+	mrmovq 24(%rdi), %r11
+	mrmovq 32(%rdi), %r12
+	mrmovq 40(%rdi), %r13
+	rmmovq %r8, (%rsi)
+	rmmovq %r9, 8(%rsi)
+	rmmovq %r10, 16(%rsi)
+	rmmovq %r11, 24(%rsi)
+	rmmovq %r12, 32(%rsi)
+	rmmovq %r13, 40(%rsi)
+	andq %r8, %r8
 	jle Npos0
 	iaddq $1, %rax
 Npos0:
-	andq %r11, %r11
+	andq %r9, %r9
 	jle Npos1
 	iaddq $1, %rax
 Npos1:
-	andq %r12, %r12
+	andq %r10, %r10
 	jle Npos2
 	iaddq $1, %rax
 Npos2:
-	andq %r13, %r13
+	andq %r11, %r11
 	jle Npos3
 	iaddq $1, %rax
 Npos3:
-	iaddq $-4, %rdx		# len--
-	iaddq $32, %rdi		# src++
-	iaddq $32, %rsi		# dst++
-
+	andq %r12, %r12
+	jle Npos4
+	iaddq $1, %rax
+Npos4:
+	andq %r13, %r13
+	jle Npos5
+	iaddq $1, %rax
+Npos5:
+	iaddq $48, %rdi		# src++
+	iaddq $48, %rsi		# dst++
 TestK:
-	irmovq $-4, %r8
-	addq %rdx, %r8
-	jg LoopK
+	iaddq $-6, %rdx		# len--
+	jge LoopK
+	iaddq $6, %rdx
 
-	jmp Test
+	jle Done:
 Loop:	
 	mrmovq (%rdi), %r10	# read val from src...
-	iaddq $-1, %rdx		# len--
+	iaddq $8, %rdi		# src++
 	rmmovq %r10, (%rsi)	# ...and store it to dst
 	andq %r10, %r10		# val <= 0?
 	jle Npos		# if so, goto Npos:
 	iaddq $1, %rax		# count++
 Npos:
-	iaddq $8, %rdi		# src++
 	iaddq $8, %rsi		# dst++
 Test:
-	andq %rdx,%rdx		# len > 0?
+	iaddq $-1, %rdx		# len--
 	jg Loop			# if so, goto Loop:
 ##################################################################
 # Do not modify the following section of code
