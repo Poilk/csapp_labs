@@ -19,8 +19,8 @@ ncopy:
 	xorq %rax,%rax		# count = 0;
 
 	jmp TestK
-LoopK:
 	mrmovq (%rdi), %r8
+LoopK:
 	mrmovq 8(%rdi), %r9
 	mrmovq 16(%rdi), %r10
 	mrmovq 24(%rdi), %r11
@@ -60,12 +60,13 @@ Npos5:
 	iaddq $48, %rsi		# dst++
 TestK:
 	iaddq $-6, %rdx		# len--
+	mrmovq (%rdi), %r8
 	jge LoopK
 	iaddq $6, %rdx
+	mrmovq (%rdi), %r10	# read val from src...
 
 	jle Done:
 Loop:	
-	mrmovq (%rdi), %r10	# read val from src...
 	iaddq $8, %rdi		# src++
 	rmmovq %r10, (%rsi)	# ...and store it to dst
 	andq %r10, %r10		# val <= 0?
@@ -75,6 +76,7 @@ Npos:
 	iaddq $8, %rsi		# dst++
 Test:
 	iaddq $-1, %rdx		# len--
+	mrmovq (%rdi), %r10	# read val from src...
 	jg Loop			# if so, goto Loop:
 ##################################################################
 # Do not modify the following section of code
