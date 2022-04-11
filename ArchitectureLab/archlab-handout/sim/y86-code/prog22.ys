@@ -1,0 +1,9 @@
+# prog8: Forwarding Priority
+  jmp F1
+  irmovq $1, %r8
+  irmovq $1, %r9
+F1:
+  irmovq $2, %r10
+  irmovq $2, %r11
+
+

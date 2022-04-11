@@ -26,33 +26,33 @@ LoopK:
 	mrmovq 24(%rdi), %r11
 	mrmovq 32(%rdi), %r12
 	mrmovq 40(%rdi), %r13
-	rmmovq %r8, (%rsi)
-	rmmovq %r9, 8(%rsi)
-	rmmovq %r10, 16(%rsi)
-	rmmovq %r11, 24(%rsi)
-	rmmovq %r12, 32(%rsi)
-	rmmovq %r13, 40(%rsi)
 	andq %r8, %r8
+	rmmovq %r13, 40(%rsi)
 	jle Npos0
 	iaddq $1, %rax
 Npos0:
 	andq %r9, %r9
+	rmmovq %r8, (%rsi)
 	jle Npos1
 	iaddq $1, %rax
 Npos1:
 	andq %r10, %r10
+	rmmovq %r9, 8(%rsi)
 	jle Npos2
 	iaddq $1, %rax
 Npos2:
 	andq %r11, %r11
+	rmmovq %r10, 16(%rsi)
 	jle Npos3
 	iaddq $1, %rax
 Npos3:
 	andq %r12, %r12
+	rmmovq %r11, 24(%rsi)
 	jle Npos4
 	iaddq $1, %rax
 Npos4:
 	andq %r13, %r13
+	rmmovq %r12, 32(%rsi)
 	jle Npos5
 	iaddq $1, %rax
 Npos5:

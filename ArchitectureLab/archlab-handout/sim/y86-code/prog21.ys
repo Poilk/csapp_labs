@@ -1,0 +1,26 @@
+# prog8: Forwarding Priority
+    xorq %rax, %rax
+    je L1
+    irmovq $1, %r8
+    irmovq $1, %r9
+L1:
+    xorq %rax, %rax
+    jne L2
+    irmovq $2, %r8
+    irmovq $2, %r9
+L2:
+    xorq %rax, %rax
+    irmovq $4, %r10
+    irmovq $4, %r11
+    je L3
+    irmovq $2, %r8
+    irmovq $2, %r9
+L3: 
+    xorq %rax, %rax
+    irmovq $4, %r10
+    irmovq $4, %r11
+    jne L4
+    irmovq $2, %r8
+    irmovq $2, %r9
+L4:
+    halt
