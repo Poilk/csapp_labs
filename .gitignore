@@ -26,3 +26,11 @@ ArchitectureLab/archlab-handout/sim/seq/seq-std.c
 ArchitectureLab/archlab-handout/sim/seq/seq-full.c
 ArchitectureLab/archlab-handout/sim/pipe/psim
 ArchitectureLab/archlab-handout/sim/pipe/pipe-std.c
+
+CacheLab/cachelab-handout/
+CacheLab/cachelab-handout/.csim_results
+CacheLab/cachelab-handout/csim
+CacheLab/cachelab-handout/poilk-handin.tar
+CacheLab/cachelab-handout/test-trans
+CacheLab/cachelab-handout/tracegen
+CacheLab/cachelab-handout/trans.o
