@@ -162,6 +162,34 @@ int main(int argc, char **argv) {
  * when we type ctrl-c (ctrl-z) at the keyboard.  
 */
 void eval(char *cmdline) {
+  char *argv[MAXARGS];
+  char buf[MAXLINE];
+  int bg;
+  pid_t pid;
+
+  strcpy(buf, cmdline);
+  bg = parseline(cmdline, argv);
+  if (argv[0] == NULL){
+    return;
+  }
+
+  if(!builtin_cmd(argv)){
+    if ((pid = fork()) == 0){
+      if (execv(argv[0], argv) < 0){
+        unix_error(argv[0]);
+      }
+    }
+    //add job but ignore echo cmd
+    if(strcmp(argv[0], "/bin/echo") != 0){
+      int bg_state = bg ? BG : FG;
+      addjob(jobs, pid, bg_state, cmdline);
+    }
+    if (bg){
+      struct job_t *cur_job = getjobpid(jobs, pid);
+      printf("[%d] (%d) %s", cur_job->jid, cur_job->pid, cmdline);
+    }
+  }
+
   return;
 }
 
@@ -224,6 +252,14 @@ int parseline(const char *cmdline, char **argv) {
  *    it immediately.  
  */
 int builtin_cmd(char **argv) {
+  if (!strcmp("quit", argv[0])){
+    exit(0);
+    return 1;
+  }
+  if(!strcmp("jobs", argv[0])){
+    listjobs(jobs);
+    return 1;
+  }
   return 0;     /* not a builtin command */
 }
 
@@ -238,6 +274,8 @@ void do_bgfg(char **argv) {
  * waitfg - Block until process pid is no longer the foreground process
  */
 void waitfg(pid_t pid) {
+  int status;
+  waitpid(pid, &status, 0);
   return;
 }
 
