@@ -169,25 +169,39 @@ void eval(char *cmdline) {
 
   strcpy(buf, cmdline);
   bg = parseline(cmdline, argv);
-  if (argv[0] == NULL){
+  if (argv[0] == NULL) {
     return;
   }
 
-  if(!builtin_cmd(argv)){
-    if ((pid = fork()) == 0){
-      if (execv(argv[0], argv) < 0){
+  if (!builtin_cmd(argv)) {
+    if ((pid = fork()) == 0) {
+      setpgid(0, 0);
+
+      if (execv(argv[0], argv) < 0) {
         unix_error(argv[0]);
       }
     }
-    //add job but ignore echo cmd
-    if(strcmp(argv[0], "/bin/echo") != 0){
+    //add job
+    {
+      //todo set mask prevent race
+      sigset_t mask, prev_mask;
+      if (sigfillset(&mask)) {
+        unix_error("sigfillset");
+      }
+      if (sigprocmask(SIG_SETMASK, &mask, &prev_mask)) {
+        unix_error("sigprocmask");
+      }
       int bg_state = bg ? BG : FG;
       addjob(jobs, pid, bg_state, cmdline);
+      if (sigprocmask(SIG_SETMASK, &prev_mask, NULL)) {
+        unix_error("sigprocmask");
+      }
     }
-    if (bg){
+    if (bg) {
       struct job_t *cur_job = getjobpid(jobs, pid);
       printf("[%d] (%d) %s", cur_job->jid, cur_job->pid, cmdline);
     }
+    waitfg(pid);
   }
 
   return;
@@ -252,11 +266,11 @@ int parseline(const char *cmdline, char **argv) {
  *    it immediately.  
  */
 int builtin_cmd(char **argv) {
-  if (!strcmp("quit", argv[0])){
+  if (!strcmp("quit", argv[0])) {
     exit(0);
     return 1;
   }
-  if(!strcmp("jobs", argv[0])){
+  if (!strcmp("jobs", argv[0])) {
     listjobs(jobs);
     return 1;
   }
@@ -274,8 +288,26 @@ void do_bgfg(char **argv) {
  * waitfg - Block until process pid is no longer the foreground process
  */
 void waitfg(pid_t pid) {
-  int status;
-  waitpid(pid, &status, 0);
+  int wait_done = 0;
+  while (1) {
+    sigset_t mask, prev_mask;
+    if (sigfillset(&mask)) {
+      unix_error("sigfillset");
+    }
+    if (sigprocmask(SIG_SETMASK, &mask, &prev_mask)) {
+      unix_error("sigprocmask");
+    }
+    if(fgpid(jobs) == 0 || fgpid(jobs) != pid){
+      wait_done = 1;
+    }
+    if (sigprocmask(SIG_SETMASK, &prev_mask, NULL)) {
+      unix_error("sigprocmask");
+    }
+    if(wait_done){
+      break;
+    }
+    sleep(1);
+  }
   return;
 }
 
@@ -291,6 +323,52 @@ void waitfg(pid_t pid) {
  *     currently running children to terminate.  
  */
 void sigchld_handler(int sig) {
+  int prev_errno = errno;
+  sigset_t mask, prev_mask;
+  if (sigfillset(&mask)) {
+    unix_error("sigfillset");
+  }
+  if (sigprocmask(SIG_SETMASK, &mask, &prev_mask)) {
+    unix_error("sigprocmask");
+  }
+  int status;
+  pid_t pid;
+  while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) != 0) {
+    if(pid < 0){
+      if(errno == ECHILD){
+        break;
+      } else if(errno == EINTR){
+        continue;
+      } else{
+        unix_error("waitpid");
+      }
+    }
+    //printf("pid: %d, exited(%d), signaled(%d), stopped(%d), continued(%d)\n",
+    //       pid, WIFEXITED(status), WIFSIGNALED(status), WIFSTOPPED(status), WIFCONTINUED(status));
+    struct job_t *job = getjobpid(jobs, pid);
+    if (job == NULL) {
+      app_error("in stop/continue a job but getjobpid failed");
+    }
+    if (WIFSTOPPED(status) || WIFCONTINUED(status)) {
+      if (WIFCONTINUED(status)) {
+        //change job state in dobgfg()
+      }
+      if (WIFSTOPPED(status)) {
+        job->state = ST;
+      }
+    }
+    //delete job
+    if (WIFEXITED(status) || WIFSIGNALED(status)) {
+      if (deletejob(jobs, pid) != 1) {
+        app_error("delete job failed");
+      }
+    }
+  }
+
+  if (sigprocmask(SIG_SETMASK, &prev_mask, NULL)) {
+    unix_error("sigprocmask");
+  }
+  errno = prev_errno;
   return;
 }
 
@@ -300,6 +378,31 @@ void sigchld_handler(int sig) {
  *    to the foreground job.  
  */
 void sigint_handler(int sig) {
+  int prev_errno = errno;
+  sigset_t mask, prev_mask;
+  if (sigfillset(&mask)) {
+    unix_error("sigfillset");
+  }
+  if (sigprocmask(SIG_SETMASK, &mask, &prev_mask)) {
+    unix_error("sigprocmask");
+  }
+
+  pid_t pid = fgpid(jobs);
+  if (pid == 0) {
+    app_error("in sigtstp_handler but dont have fg job");
+  } else {
+    struct job_t *job = getjobpid(jobs, pid);
+    printf("Job [%d] (%d) terminated by signal %d\n", job->jid, job->pid, sig);
+    job->state = UNDEF;
+    if (kill(pid, SIGINT)) {
+      unix_error("kill");
+    }
+  }
+
+  if (sigprocmask(SIG_SETMASK, &prev_mask, NULL)) {
+    unix_error("sigprocmask");
+  }
+  errno = prev_errno;
   return;
 }
 
@@ -309,6 +412,30 @@ void sigint_handler(int sig) {
  *     foreground job by sending it a SIGTSTP.  
  */
 void sigtstp_handler(int sig) {
+  int prev_errno = errno;
+  sigset_t mask, prev_mask;
+  if (sigfillset(&mask)) {
+    unix_error("sigfillset");
+  }
+  if (sigprocmask(SIG_SETMASK, &mask, &prev_mask)) {
+    unix_error("sigprocmask");
+  }
+
+  pid_t pid = fgpid(jobs);
+  if (pid == 0) {
+    app_error("in sigtstp_handler but dont have fg job");
+  } else {
+    struct job_t *job = getjobpid(jobs, pid);
+    printf("Job [%d] (%d) stopped by signal %d\n", job->jid, job->pid, sig);
+    if (kill(pid, SIGTSTP)) {
+      unix_error("kill");
+    }
+  }
+
+  if (sigprocmask(SIG_SETMASK, &prev_mask, NULL)) {
+    unix_error("sigprocmask");
+  }
+  errno = prev_errno;
   return;
 }
 
