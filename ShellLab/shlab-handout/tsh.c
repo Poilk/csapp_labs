@@ -174,28 +174,28 @@ void eval(char *cmdline) {
   }
 
   if (!builtin_cmd(argv)) {
+    sigset_t mask, prev_mask;
+    if (sigfillset(&mask)) {
+      unix_error("sigfillset");
+    }
+    if (sigprocmask(SIG_SETMASK, &mask, &prev_mask)) {
+      unix_error("sigprocmask");
+    }
+    int bg_state = bg ? BG : FG;
     if ((pid = fork()) == 0) {
       setpgid(0, 0);
 
+      if (sigprocmask(SIG_SETMASK, &prev_mask, NULL)) {
+        unix_error("sigprocmask");
+      }
       if (execv(argv[0], argv) < 0) {
         unix_error(argv[0]);
       }
     }
     //add job
-    {
-      //todo set mask prevent race
-      sigset_t mask, prev_mask;
-      if (sigfillset(&mask)) {
-        unix_error("sigfillset");
-      }
-      if (sigprocmask(SIG_SETMASK, &mask, &prev_mask)) {
-        unix_error("sigprocmask");
-      }
-      int bg_state = bg ? BG : FG;
-      addjob(jobs, pid, bg_state, cmdline);
-      if (sigprocmask(SIG_SETMASK, &prev_mask, NULL)) {
-        unix_error("sigprocmask");
-      }
+    addjob(jobs, pid, bg_state, cmdline);
+    if (sigprocmask(SIG_SETMASK, &prev_mask, NULL)) {
+      unix_error("sigprocmask");
     }
     if (bg) {
       struct job_t *cur_job = getjobpid(jobs, pid);
@@ -308,7 +308,7 @@ void do_bgfg(char **argv) {
       printf("%s: argument must be a PID or %%jobid\n", argv[0]);
       return;
     }
-    if(ret != 1){
+    if (ret != 1) {
       printf("%s command requires PID or %%jobid argument\n", argv[0]);
       return;
     }
@@ -378,7 +378,7 @@ void waitfg(pid_t pid) {
     if (wait_done) {
       break;
     }
-    sleep(1);
+    sleep(5);
   }
   return;
 }
@@ -421,21 +421,23 @@ void sigchld_handler(int sig) {
     if (job == NULL) {
       app_error("in stop/continue a job but getjobpid failed");
     }
-    if (WIFSTOPPED(status) || WIFCONTINUED(status)) {
-      if (WIFCONTINUED(status)) {
-        //change job state in dobgfg()
-      }
-      if (WIFSTOPPED(status)) {
-        job->state = ST;
-      }
+    if (WIFSTOPPED(status)) {
+      job->state = ST;
+      printf("Job [%d] (%d) stopped by signal %d\n", job->jid, job->pid, WSTOPSIG(status));
     }
+    if (WIFSIGNALED(status)) {
+      printf("Job [%d] (%d) terminated by signal %d\n", job->jid, job->pid, WTERMSIG(status));
+    }
+
     //delete job
     if (WIFEXITED(status) || WIFSIGNALED(status)) {
+      //printf("delete pid %d\n", pid);
       if (deletejob(jobs, pid) != 1) {
         app_error("delete job failed");
       }
     }
   }
+  //puts("sigchld_handler done");
 
   if (sigprocmask(SIG_SETMASK, &prev_mask, NULL)) {
     unix_error("sigprocmask");
@@ -458,14 +460,12 @@ void sigint_handler(int sig) {
   if (sigprocmask(SIG_SETMASK, &mask, &prev_mask)) {
     unix_error("sigprocmask");
   }
+  //puts("sigint_handler");
 
   pid_t pid = fgpid(jobs);
   if (pid == 0) {
     app_error("in sigtstp_handler but dont have fg job");
   } else {
-    struct job_t *job = getjobpid(jobs, pid);
-    printf("Job [%d] (%d) terminated by signal %d\n", job->jid, job->pid, sig);
-    job->state = UNDEF;
     if (kill(-pid, SIGINT)) {
       unix_error("kill");
     }
@@ -492,13 +492,12 @@ void sigtstp_handler(int sig) {
   if (sigprocmask(SIG_SETMASK, &mask, &prev_mask)) {
     unix_error("sigprocmask");
   }
+  //puts("sigtstp_handler");
 
   pid_t pid = fgpid(jobs);
   if (pid == 0) {
     app_error("in sigtstp_handler but dont have fg job");
   } else {
-    struct job_t *job = getjobpid(jobs, pid);
-    printf("Job [%d] (%d) stopped by signal %d\n", job->jid, job->pid, sig);
     if (kill(-pid, SIGTSTP)) {
       unix_error("kill");
     }
