@@ -40,3 +40,6 @@ ShellLab/shlab-handout/myspin
 ShellLab/shlab-handout/mysplit
 ShellLab/shlab-handout/mystop
 ShellLab/shlab-handout/tsh
+
+MallocLab/malloclab-handout/*.o
+MallocLab/malloclab-handout/mdriver
