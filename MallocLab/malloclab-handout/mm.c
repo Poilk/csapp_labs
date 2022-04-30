@@ -43,7 +43,6 @@
 /* rounds up to the nearest multiple of ALIGNMENT */
 #define ALIGN(size) (((size) + (ALIGNMENT-1)) & ~0x7)
 
-
 #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
 #define SIZE_PTR(p)  ((size_t*)(((char*)(p)) - SIZE_T_SIZE))
@@ -51,8 +50,7 @@
 /*
  * mm_init - Called when a new trace starts.
  */
-int mm_init(void)
-{
+int mm_init(void) {
   return 0;
 }
 
@@ -60,13 +58,12 @@ int mm_init(void)
  * malloc - Allocate a block by incrementing the brk pointer.
  *      Always allocate a block whose size is a multiple of the alignment.
  */
-void *malloc(size_t size)
-{
+void *malloc(size_t size) {
   int newsize = ALIGN(size + SIZE_T_SIZE);
   unsigned char *p = mem_sbrk(newsize);
   //dbg_printf("malloc %u => %p\n", size, p);
 
-  if ((long)p < 0)
+  if ((long) p < 0)
     return NULL;
   else {
     p += SIZE_T_SIZE;
@@ -79,9 +76,9 @@ void *malloc(size_t size)
  * free - We don't know how to free a block.  So we ignore this call.
  *      Computers have big memories; surely it won't be a problem.
  */
-void free(void *ptr){
-	/*Get gcc to be quiet */
-	ptr = ptr;
+void free(void *ptr) {
+  /*Get gcc to be quiet */
+  ptr = ptr;
 
 }
 
@@ -90,32 +87,31 @@ void free(void *ptr){
  *      copying its data, and freeing the old block.  I'm too lazy
  *      to do better.
  */
-void *realloc(void *oldptr, size_t size)
-{
+void *realloc(void *oldptr, size_t size) {
   size_t oldsize;
   void *newptr;
 
   /* If size == 0 then this is just free, and we return NULL. */
-  if(size == 0) {
+  if (size == 0) {
     free(oldptr);
     return 0;
   }
 
   /* If oldptr is NULL, then this is just malloc. */
-  if(oldptr == NULL) {
+  if (oldptr == NULL) {
     return malloc(size);
   }
 
   newptr = malloc(size);
 
   /* If realloc() fails the original block is left untouched  */
-  if(!newptr) {
+  if (!newptr) {
     return 0;
   }
 
   /* Copy the old data. */
   oldsize = *SIZE_PTR(oldptr);
-  if(size < oldsize) oldsize = size;
+  if (size < oldsize) oldsize = size;
   memcpy(newptr, oldptr, oldsize);
 
   /* Free the old block. */
@@ -127,8 +123,7 @@ void *realloc(void *oldptr, size_t size)
 /*
  * calloc - Allocate the block and set it to zero.
  */
-void *calloc (size_t nmemb, size_t size)
-{
+void *calloc(size_t nmemb, size_t size) {
   size_t bytes = nmemb * size;
   void *newptr;
 
@@ -142,7 +137,7 @@ void *calloc (size_t nmemb, size_t size)
  * mm_checkheap - There are no bugs in my code, so I don't need to check,
  *      so nah!
  */
-void mm_checkheap(int verbose){
-	/*Get gcc to be quiet. */
-	verbose = verbose;
+void mm_checkheap(int verbose) {
+  /*Get gcc to be quiet. */
+  verbose = verbose;
 }
