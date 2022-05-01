@@ -45,3 +45,5 @@ MallocLab/malloclab-handout/*.o
 MallocLab/malloclab-handout/mdriver
 
 .vscode
+cmake-build-*
+build
