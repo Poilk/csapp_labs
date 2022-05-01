@@ -43,3 +43,5 @@ ShellLab/shlab-handout/tsh
 
 MallocLab/malloclab-handout/*.o
 MallocLab/malloclab-handout/mdriver
+
+.vscode
