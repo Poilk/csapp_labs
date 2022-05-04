@@ -9,6 +9,6 @@ foreach(version std book-sample baseline)
     # real build and test command
     add_custom_target(malloc-${version}-test
             COMMAND make clean && make VERSION=${version}
-            COMMAND ./mdriver
+            COMMAND ./mdriver -l
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 endforeach()

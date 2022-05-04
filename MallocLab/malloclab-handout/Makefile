@@ -5,6 +5,7 @@
 VERSION=std
 CC = gcc
 CFLAGS = -O2 -g -DDRIVER
+# disable flag during dev
 MMFLAGS = -Wall -Wextra -Werror
 
 OBJS = mdriver.o mm.o memlib.o fsecs.o fcyc.o clock.o ftimer.o driverlib.o
