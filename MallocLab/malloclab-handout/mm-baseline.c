@@ -67,8 +67,8 @@
 #define FREE_FLAG_POS       0
 
 //help fuction
-static inline uint32_t get_uint32(void *p);
-static inline void set_uint32(void *p, uint32_t val);
+static inline uint32_t get_uint32(uint32_t *p);
+static inline void set_uint32(uint32_t *p, uint32_t val);
 static inline void *hdrp(void *bp);
 static inline void *ftrp(void *bp);
 static inline uint32_t get_block_size(void *bp);
@@ -78,8 +78,9 @@ static inline bool is_red_node(void *bp);
 static inline bool is_free_node(void *bp);
 static inline void *next_blkp(void *bp);
 static inline void *prev_blkp(void *bp);
-static inline void set_ptr_address(void *ptr, void *val);
-static inline void *get_ptr_address(void *ptr);
+static inline void init_blkp(void *bp, uint32_t size);
+static inline void set_ptr_address(int64_t *ptr, int64_t *val);
+static inline int64_t *get_ptr_address(int64_t *ptr);
 static bool check_bp(void *bp);
 static bool check_bp_in_heap(void *bp);
 static bool check_rb_tree(void *h_node);
@@ -93,6 +94,7 @@ static inline void set_flag(void *bp, int pos, bool val, int mode_mask);
 static inline bool is_flag_match(void *bp, int pos, bool check_val, int mode_mask);
 
 static void *heap_p = 0;  /* Pointer to first block */
+static void *first_block, *last_block;
 
 static void *bst_get(size_t size);
 static void bst_put(void *node);
@@ -108,18 +110,32 @@ int mm_init(void) {
     }
     //init RB-Tree root
     set_ptr_address(heap_p, 0);
-    set_ptr_address((char *) heap_p + DSIZE, 0);
+    set_ptr_address((int64_t *)heap_p + 1, 0);
+    last_block = 0;
+    first_block = malloc(16);
     return 0;
 }
 
 void *malloc(size_t size) {
     //todo support small block
-    dbg_printf("malloc request: %u\n", size);
+    dbg_printf("malloc request: %lu\n", size);
     //hd l_son, r_son, ft
     uint32_t aligned_size = ALIGN_TREE_NODE(size);
     void *bp = bst_get(aligned_size);
     if (bp == NULL) {
         bp = extend_heap(aligned_size);
+    } else{
+        //split block
+        uint32_t bp_size = get_block_size(bp);
+        if(bp_size - aligned_size > MAX(40, (bp_size - aligned_size) / 4)){
+            init_blkp(bp, aligned_size);
+            void *block2 = (char *)bp + aligned_size;
+            init_blkp(block2, bp_size - aligned_size);
+            free(block2);
+            if(bp == last_block){
+                last_block = block2;
+            }
+        }
     }
     dbg_assert(bp);
     set_flag(bp, FREE_FLAG_POS, ASSIGNED_FLAG, MASK_FLAG_HD | MASK_FLAG_FT);
@@ -143,8 +159,6 @@ void free(void *ptr) {
     }
     dbg_printf("free bp:%p, size:%u\n", ptr, get_block_size(ptr));
 
-    set_flag(ptr, COLOR_FLAG_POS, RED_FLAG, MASK_FLAG_HD);
-    set_flag(ptr, FREE_FLAG_POS, FREE_FLAG, MASK_FLAG_HD | MASK_FLAG_FT);
     //check_bp(ptr);
     bst_put(ptr);
 
@@ -301,7 +315,7 @@ void mm_checkheap(int verbose) {
         bp = next_blkp(bp);
     }
     if (bp != heap_hi) {
-        dbg_printf("check_heap_failed bp(%p), heap(%p, %p)\n", bp, heap_lo, heap_hi);
+        dbg_printf("check_heap_failed bp(%p), heap(%p, %p)\n", bp, mem_heap_lo(), heap_hi);
         return;
     }
 #ifdef DEBUG
@@ -316,6 +330,12 @@ void mm_checkheap(int verbose) {
 }
 
 
+static inline void init_blkp(void *bp, uint32_t size){
+    set_uint32(hdrp(bp), size);
+    //set header before set footer
+    set_uint32(ftrp(bp), size);
+    //check_bp(bp);
+}
 /*
  * extend_heap - Extend heap with free block and return its block pointer
  */
@@ -331,11 +351,9 @@ static void *extend_heap(size_t size) {
         printf("Error extend_heap size: (%lu) failed!!\n", size);
         exit(-1);
     }
-    set_uint32(hdrp(bp), size);
-    //set header before set footer
-    set_uint32(ftrp(bp), size);
-    //check_bp(bp);
+    init_blkp(bp, size);
     dbg_printf("extend_heap size:%lu, new_bp:%p, new_heap_hi:%p\n", size, bp, mem_heap_hi());
+    last_block = bp;
 
     return bp;
 }
@@ -343,6 +361,7 @@ static void *extend_heap(size_t size) {
 static void *rb_tree_find(void *h_node, size_t size);
 
 //delete a leaf node
+static void rb_tree_delete_node(void *root, void *delete_node);
 static void *rb_tree_delete_leaf_node(void *h_node, void *delete_node);
 static void *rb_tree_replace_node(void *h_node, void *old_node, void *replace_node);
 //insert a node to rb_tree
@@ -369,41 +388,43 @@ static void *bst_get(size_t size) {
     void *root = get_ptr_address(heap_p);
     void *bp = rb_tree_find(root, size);
     if (bp != NULL) {
-        void *del_cur_addr_ptr = get_left_son_ptr(bp);
-        void *del_cur = get_ptr_address(del_cur_addr_ptr);
-        if (del_cur == NULL) {
-            //leaf node, we can directly remove it
-            set_flag(root, COLOR_FLAG_POS, RED_FLAG, MASK_FLAG_HD);
-            dbg_printf("delete_node 1 %p %p\n", bp, NULL);
-            root = rb_tree_delete_leaf_node(root, bp);
-            set_ptr_address(heap_p, root);
-        } else {
-            //find prev node, then delete it.then replace bp by prev node
-            void *del_r_addr_ptr = get_right_son_ptr(del_cur);
-            void *del_r = get_ptr_address(del_r_addr_ptr);
-            while (del_r) {
-                del_cur = del_r;
-                del_r_addr_ptr = get_right_son_ptr(del_cur);
-                del_r = get_ptr_address(del_r_addr_ptr);
-            }
-            set_flag(root, COLOR_FLAG_POS, RED_FLAG, MASK_FLAG_HD);
-            dbg_printf("delete_node 2 %p %p\n", del_cur, bp);
-            root = rb_tree_delete_leaf_node(root, del_cur);
-            set_ptr_address(heap_p, root);
-            dbg_printf("rb_tree_replace_node %p %p %p\n", root, bp, del_cur);
-            root = rb_tree_replace_node(root, bp, del_cur);
-            set_ptr_address(heap_p, root);
-        }
-    }
-    if (root) {
-        set_flag(root, COLOR_FLAG_POS, BLACK_FLAG, MASK_FLAG_HD);
+        rb_tree_delete_node(root, bp);
     }
     return bp;
 }
 
 static void bst_put(void *node) {
     dbg_printf("insert_node\n");
-    void *root = rb_tree_insert(get_ptr_address(heap_p), node);
+    void *root = get_ptr_address(heap_p);
+    if(node != first_block){
+        void *prev_node = prev_blkp(node);
+        check_bp(prev_node);
+        if(is_free_node(prev_node)){
+            rb_tree_delete_node(root, prev_node);
+            root = get_ptr_address(heap_p);
+            init_blkp(prev_node, get_block_size(prev_node) + get_block_size(node));
+            if(node == last_block){
+                last_block = prev_node;
+            }
+            node = prev_node;
+        }
+    }
+    if(node != last_block){
+        void *next_node = prev_blkp(node);
+        if(is_free_node(next_node)){
+            rb_tree_delete_node(root, next_node);
+            root = get_ptr_address(heap_p);
+            init_blkp(next_node, get_block_size(next_node) + get_block_size(node));
+            if(next_node == last_block){
+                last_block = node;
+            }
+            node = next_node;
+        }
+    }
+    set_flag(node, COLOR_FLAG_POS, RED_FLAG, MASK_FLAG_HD);
+    set_flag(node, FREE_FLAG_POS, FREE_FLAG, MASK_FLAG_HD | MASK_FLAG_FT);
+
+    root = rb_tree_insert(get_ptr_address(heap_p), node);
     set_flag(root, COLOR_FLAG_POS, BLACK_FLAG, MASK_FLAG_HD);
     set_ptr_address(heap_p, root);
 }
@@ -453,6 +474,37 @@ static void *rb_tree_replace_node(void *h_node, void *old_node, void *replace_no
         h_node = replace_node;
     }
     return h_node;
+}
+
+static void rb_tree_delete_node(void *root, void *delete_node){
+    void *del_cur_addr_ptr = get_left_son_ptr(delete_node);
+    void *del_cur = get_ptr_address(del_cur_addr_ptr);
+    if (del_cur == NULL) {
+        //leaf node, we can directly remove it
+        set_flag(root, COLOR_FLAG_POS, RED_FLAG, MASK_FLAG_HD);
+        dbg_printf("delete_node 1 %p %p\n", delete_node, NULL);
+        root = rb_tree_delete_leaf_node(root, delete_node);
+        set_ptr_address(heap_p, root);
+    } else {
+        //find prev node, then delete it.then replace bp by prev node
+        void *del_r_addr_ptr = get_right_son_ptr(del_cur);
+        void *del_r = get_ptr_address(del_r_addr_ptr);
+        while (del_r) {
+            del_cur = del_r;
+            del_r_addr_ptr = get_right_son_ptr(del_cur);
+            del_r = get_ptr_address(del_r_addr_ptr);
+        }
+        set_flag(root, COLOR_FLAG_POS, RED_FLAG, MASK_FLAG_HD);
+        dbg_printf("delete_node 2 %p %p\n", del_cur, delete_node);
+        root = rb_tree_delete_leaf_node(root, del_cur);
+        set_ptr_address(heap_p, root);
+        dbg_printf("rb_tree_replace_node %p %p %p\n", root, delete_node, del_cur);
+        root = rb_tree_replace_node(root, delete_node, del_cur);
+        set_ptr_address(heap_p, root);
+    }
+    if (root) {
+        set_flag(root, COLOR_FLAG_POS, BLACK_FLAG, MASK_FLAG_HD);
+    }
 }
 
 //
@@ -678,13 +730,13 @@ static void *rb_tree_flip_colors(void *h_node) {
     return h_node;
 }
 
-static inline uint32_t get_uint32(void *p) {
+static inline uint32_t get_uint32(uint32_t *p) {
     dbg_assert(p);
-    return *((uint32_t *) (p));
+    return * p;
 }
 
-static inline void set_uint32(void *p, uint32_t val) {
-    *((uint32_t *) (p)) = val;
+static inline void set_uint32(uint32_t *p, uint32_t val) {
+    *p = val;
 }
 
 static inline void *hdrp(void *bp) {
@@ -702,7 +754,7 @@ static inline uint32_t get_block_size(void *bp) {
 
 static inline uint32_t get_prev_block_size(void *bp) {
     dbg_assert(bp);
-    return get_uint32((char *) bp - DSIZE) & ~0x7;
+    return get_uint32((uint32_t *) bp - 2) & ~0x7;
 }
 
 static inline void *get_left_son(void *bp) {
@@ -768,16 +820,16 @@ static inline bool is_free_node(void *bp) {
 
 //#define ADDRESS_PTR_SET(dst_p, src_p)       (*(int64_t *)(dst_p) = ((int64_t)(int64_t *)src_p))
 //#define ADDRESS_PTR_GET(p)                  (*(int64_t*)(p) ? (void *)*(int64_t *)p: NULL)
-static inline void set_ptr_address(void *ptr, void *val) {
+static inline void set_ptr_address(int64_t *ptr, int64_t *val){
     dbg_assert(ptr);
-    (*(int64_t *) ptr) = (int64_t) (int64_t *) val;
+    *ptr = (int64_t)val;
 }
 
-static inline void *get_ptr_address(void *ptr) {
+static inline int64_t *get_ptr_address(int64_t *ptr){
     if (ptr == NULL) {
         return NULL;
     }
-    return (void *) (*(int64_t *) ptr);
+    return (int64_t *)*ptr;
 }
 
 static inline void *next_blkp(void *bp) {
